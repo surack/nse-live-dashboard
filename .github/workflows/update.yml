@@ -1,28 +1,13 @@
-name: Update PCR Data
+name: Test Workflow
 
 on:
 workflow_dispatch:
-schedule:
-- cron: "*/5 * * * *"
 
 jobs:
-update:
+test:
 runs-on: ubuntu-latest
 
+```
 steps:
-  - uses: actions/checkout@v3
-
-  - uses: actions/setup-python@v4
-    with:
-      python-version: "3.10"
-
-  - run: pip install requests
-
-  - run: python script.py
-
-  - run: |
-      git config user.name "github-actions"
-      git config user.email "actions@github.com"
-      git add data.json
-      git commit -m "update data" || echo "no changes"
-      git push
+  - run: echo "Hello World"
+```
