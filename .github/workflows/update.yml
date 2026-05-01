@@ -9,7 +9,6 @@ jobs:
 update:
 runs-on: ubuntu-latest
 
-```
 steps:
   - name: Checkout repo
     uses: actions/checkout@v3
@@ -34,4 +33,3 @@ steps:
       git add data.json
       git commit -m "update data" || echo "no changes"
       git push
-```
