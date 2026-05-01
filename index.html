@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NSE Live PCR Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    background: #0f172a;
+    color: white;
+    font-family: Arial;
+    text-align: center;
+}
+h1 {
+    margin-top: 20px;
+}
+.container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+}
+.card {
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 10px;
+}
+button {
+    padding: 10px 20px;
+    margin: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.start { background: green; color: white; }
+.stop { background: red; color: white; }
+select {
+    padding: 8px;
+    margin: 10px;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>📊 NSE Live PCR Dashboard</h1>
+
+<select id="indexSelect">
+    <option value="NIFTY">NIFTY</option>
+    <option value="BANKNIFTY">BANKNIFTY</option>
+</select>
+
+<br>
+
+<button class="start" onclick="start()">Start</button> <button class="stop" onclick="stop()">Stop</button>
+
+<p id="status">Status: Stopped</p>
+
+<div class="container">
+    <div class="card"><canvas id="pcr5"></canvas></div>
+    <div class="card"><canvas id="pcr8"></canvas></div>
+    <div class="card"><canvas id="oi"></canvas></div>
+    <div class="card"><canvas id="coi"></canvas></div>
+</div>
+
+<script>
+let interval;
+let labels = [];
+let pcr5Data = [];
+let pcr8Data = [];
+let oiData = [];
+let coiData = [];
+
+function fetchData() {
+    let index = document.getElementById("indexSelect").value;
+
+    let url = `https://api.allorigins.win/raw?url=https://www.nseindia.com/api/option-chain-indices?symbol=${index}`;
+
+    fetch(url)
+    .then(res => res.json())
+    .then(data => {
+        let records = data.records.data;
+        let totalPE = 0;
+        let totalCE = 0;
+
+        let count = 0;
+
+        for (let item of records) {
+            if (item.CE && item.PE) {
+                totalPE += item.PE.openInterest;
+                totalCE += item.CE.openInterest;
+                count++;
+            }
+            if (count >= 8) break;
+        }
+
+        let pcr = totalPE / totalCE;
+
+        let time = new Date().toLocaleTimeString();
+
+        labels.push(time);
+        pcr5Data.push(pcr);
+        pcr8Data.push(pcr + 0.1); // placeholder logic
+        oiData.push(totalPE);
+        coiData.push(totalCE);
+
+        updateCharts();
+    });
+}
+
+function start() {
+    document.getElementById("status").innerText = "Status: Running";
+    fetchData();
+    interval = setInterval(fetchData, 300000); // 5 min
+}
+
+function stop() {
+    clearInterval(interval);
+    document.getElementById("status").innerText = "Status: Stopped";
+}
+
+function createChart(id, label, dataArr) {
+    return new Chart(document.getElementById(id), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: label,
+                data: dataArr
+            }]
+        }
+    });
+}
+
+let chart1 = createChart("pcr5", "PCR (5 Strike)", pcr5Data);
+let chart2 = createChart("pcr8", "PCR (8 Strike)", pcr8Data);
+let chart3 = createChart("oi", "Open Interest", oiData);
+let chart4 = createChart("coi", "Change in OI", coiData);
+
+function updateCharts() {
+    chart1.update();
+    chart2.update();
+    chart3.update();
+    chart4.update();
+}
+</script>
+
+</body>
+</html>
