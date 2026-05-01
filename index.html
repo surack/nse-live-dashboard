@@ -1,54 +1,61 @@
 <!DOCTYPE html>
 
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>NSE Live PCR Dashboard</title>
+<title>NSE Pro PCR Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body {
-    background: #0f172a;
-    color: white;
-    font-family: Arial;
-    text-align: center;
+    background:#0f172a;
+    color:white;
+    font-family:Arial;
+    text-align:center;
 }
-h1 {
-    margin-top: 20px;
-}
-.container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    padding: 20px;
+h1 { margin:20px; }
+
+.top-cards {
+    display:flex;
+    justify-content:center;
+    gap:20px;
+    margin-bottom:20px;
 }
 .card {
-    background: #1e293b;
-    padding: 20px;
-    border-radius: 10px;
+    background:#1e293b;
+    padding:15px;
+    border-radius:10px;
+    width:200px;
+}
+.container {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+    padding:20px;
+}
+canvas {
+    background:#1e293b;
+    border-radius:10px;
+    padding:10px;
 }
 button {
-    padding: 10px 20px;
-    margin: 10px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
+    padding:10px 20px;
+    margin:10px;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
 }
-.start { background: green; color: white; }
-.stop { background: red; color: white; }
-select {
-    padding: 8px;
-    margin: 10px;
-}
+.start { background:green; }
+.stop { background:red; }
 </style>
 
 </head>
 
 <body>
 
-<h1>📊 NSE Live PCR Dashboard</h1>
+<h1>📊 NSE PCR Dashboard (ATM ±8)</h1>
 
-<select id="indexSelect">
+<select id="index">
     <option value="NIFTY">NIFTY</option>
     <option value="BANKNIFTY">BANKNIFTY</option>
 </select>
@@ -57,95 +64,117 @@ select {
 
 <button class="start" onclick="start()">Start</button> <button class="stop" onclick="stop()">Stop</button>
 
-<p id="status">Status: Stopped</p>
+<p id="status">Stopped</p>
+
+<div class="top-cards">
+    <div class="card">
+        <h3>OI PCR</h3>
+        <p id="oiPcrValue">--</p>
+    </div>
+    <div class="card">
+        <h3>Change OI PCR</h3>
+        <p id="coiPcrValue">--</p>
+    </div>
+</div>
 
 <div class="container">
-    <div class="card"><canvas id="pcr5"></canvas></div>
-    <div class="card"><canvas id="pcr8"></canvas></div>
-    <div class="card"><canvas id="oi"></canvas></div>
-    <div class="card"><canvas id="coi"></canvas></div>
+    <canvas id="oiChart"></canvas>
+    <canvas id="coiChart"></canvas>
 </div>
 
 <script>
+
 let interval;
 let labels = [];
-let pcr5Data = [];
-let pcr8Data = [];
-let oiData = [];
-let coiData = [];
+let oiPCRData = [];
+let coiPCRData = [];
 
-function fetchData() {
-    let index = document.getElementById("indexSelect").value;
-
-    let url = `https://api.allorigins.win/raw?url=https://www.nseindia.com/api/option-chain-indices?symbol=${index}`;
-
-    fetch(url)
-    .then(res => res.json())
-    .then(data => {
-        let records = data.records.data;
-        let totalPE = 0;
-        let totalCE = 0;
-
-        let count = 0;
-
-        for (let item of records) {
-            if (item.CE && item.PE) {
-                totalPE += item.PE.openInterest;
-                totalCE += item.CE.openInterest;
-                count++;
-            }
-            if (count >= 8) break;
-        }
-
-        let pcr = totalPE / totalCE;
-
-        let time = new Date().toLocaleTimeString();
-
-        labels.push(time);
-        pcr5Data.push(pcr);
-        pcr8Data.push(pcr + 0.1); // placeholder logic
-        oiData.push(totalPE);
-        coiData.push(totalCE);
-
-        updateCharts();
-    });
-}
-
-function start() {
-    document.getElementById("status").innerText = "Status: Running";
+function start(){
+    document.getElementById("status").innerText="Running";
     fetchData();
-    interval = setInterval(fetchData, 300000); // 5 min
+    interval=setInterval(fetchData,300000);
 }
 
-function stop() {
+function stop(){
     clearInterval(interval);
-    document.getElementById("status").innerText = "Status: Stopped";
+    document.getElementById("status").innerText="Stopped";
 }
 
-function createChart(id, label, dataArr) {
-    return new Chart(document.getElementById(id), {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: label,
-                data: dataArr
+async function fetchData(){
+
+    let symbol=document.getElementById("index").value;
+
+    let url=`https://api.allorigins.win/raw?url=https://www.nseindia.com/api/option-chain-indices?symbol=${symbol}`;
+
+    let res=await fetch(url);
+    let json=await res.json();
+
+    let data=json.records.data;
+    let spot=json.records.underlyingValue;
+
+    // find ATM
+    let closest=data.reduce((prev,curr)=>{
+        return Math.abs(curr.strikePrice-spot) < Math.abs(prev.strikePrice-spot) ? curr : prev;
+    });
+
+    let atm=closest.strikePrice;
+
+    // filter ±8 strikes
+    let strikes=data.filter(item=>{
+        return item.strikePrice>=atm-8*100 && item.strikePrice<=atm+8*100;
+    });
+
+    let totalPE_OI=0;
+    let totalCE_OI=0;
+    let totalPE_COI=0;
+    let totalCE_COI=0;
+
+    for(let item of strikes){
+        if(item.CE && item.PE){
+            totalCE_OI+=item.CE.openInterest;
+            totalPE_OI+=item.PE.openInterest;
+
+            totalCE_COI+=item.CE.changeinOpenInterest;
+            totalPE_COI+=item.PE.changeinOpenInterest;
+        }
+    }
+
+    let oiPCR=(totalPE_OI/totalCE_OI).toFixed(2);
+    let coiPCR=(totalPE_COI/totalCE_COI).toFixed(2);
+
+    document.getElementById("oiPcrValue").innerText=oiPCR;
+    document.getElementById("coiPcrValue").innerText=coiPCR;
+
+    let time=new Date().toLocaleTimeString();
+
+    labels.push(time);
+    oiPCRData.push(oiPCR);
+    coiPCRData.push(coiPCR);
+
+    updateCharts();
+}
+
+function createChart(id,label,dataArr){
+    return new Chart(document.getElementById(id),{
+        type:'line',
+        data:{
+            labels:labels,
+            datasets:[{
+                label:label,
+                data:dataArr
             }]
         }
     });
 }
 
-let chart1 = createChart("pcr5", "PCR (5 Strike)", pcr5Data);
-let chart2 = createChart("pcr8", "PCR (8 Strike)", pcr8Data);
-let chart3 = createChart("oi", "Open Interest", oiData);
-let chart4 = createChart("coi", "Change in OI", coiData);
+let chart1=createChart("oiChart","OI PCR",oiPCRData);
+let chart2=createChart("coiChart","Change OI PCR",coiPCRData);
 
-function updateCharts() {
+function updateCharts(){
     chart1.update();
     chart2.update();
-    chart3.update();
-    chart4.update();
 }
+
 </script>
 
 </body>
