@@ -1,1 +1,67 @@
+<!DOCTYPE html>
 
+<html>
+<head>
+<meta charset="UTF-8">
+<title>PCR Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body { background:#0f172a; color:white; text-align:center; font-family:Arial; }
+.card { background:#1e293b; padding:15px; margin:10px; display:inline-block; border-radius:10px; }
+</style>
+
+</head>
+
+<body>
+
+<h2>📊 PCR Dashboard</h2>
+
+<div class="card">
+  <h3>OI PCR</h3>
+  <p id="oi">--</p>
+</div>
+
+<div class="card">
+  <h3>Change OI PCR</h3>
+  <p id="coi">--</p>
+</div>
+
+<canvas id="chart"></canvas>
+
+<script>
+
+let labels=[], oi=[], coi=[];
+
+async function loadData(){
+  let res = await fetch("data.json");
+  let data = await res.json();
+
+  labels = data.map(x => x.time);
+  oi = data.map(x => x.oi_pcr);
+  coi = data.map(x => x.coi_pcr);
+
+  document.getElementById("oi").innerText = oi[oi.length-1];
+  document.getElementById("coi").innerText = coi[coi.length-1];
+
+  chart.update();
+}
+
+let chart = new Chart(document.getElementById("chart"), {
+  type: 'line',
+  data: {
+    labels: labels,
+    datasets: [
+      { label: "OI PCR", data: oi },
+      { label: "Change OI PCR", data: coi }
+    ]
+  }
+});
+
+loadData();
+setInterval(loadData, 300000);
+
+</script>
+
+</body>
+</html>
